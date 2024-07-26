@@ -146,3 +146,8 @@ public void addMember(String username) {
 2. `em.createQuery(Article)` 이 시점에 대기중 엔티티(Member)와 안 겹치는 엔티티(Article)의 JPQL 쿼리 실행하려고 함. Member flush 생략하고 Article SELECT 쿼리 실행함.
 3. `em.createQuery(Member)` 이 시점에 대기중 엔티티(Member)와 겹치는 엔티티에 대한 JPQL 쿼리 실행하려고 하기 때문에 이 때 flush함. 그 다음에 Member INSERT하고 Member SELECT함.
 
+## <a id="14">JPA의 DISTINCT와 DB DISTINCT의 차이점은?</a>
+- DB: 조인한 테이블에서 완전히 똑같은 로우가 없으면 중복 제거 안 함
+- JPA: PK만 같으면 동일하다고 간주하고 중복 제거함
+
+
