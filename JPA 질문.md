@@ -7,6 +7,12 @@
 - **즉시 로딩 시** : JPQL 쓸 때 영속성 컨텍스트가 아닌 DB에서 직접 조회한 다음 즉시로딩 전략이 동작해서
 - **지연 로딩 시** : 하위 엔티티 로드할 때 JPA에서 프록시 엔티티를 unproxy할 때 해당 엔티티 조회하기 위한 추가적인 쿼리가 실행되어 발생함
 
+### N+1과 삭제에 대해
+- `Casecade.ALL` 붙이면... + `orphanRemoval=True`도. 
+- 부모 엔티티 삭제됐을 때 자식 엔티티도 삭제되긴 하는데 삭제할 자식 찾아오기 위해 SELECT 쿼리를 한 번 더 보냄.
+- 이게 왜 무의미하냐면, 이미 자식들의 PK 값이 컬렉션에 들어있으니까.
+- 해결: `CascadeType.PERSIST` 써서 영속성 전이 안 일어나게 하고, 자식은 그냥 DELETE ... WHERE 로 직접 삭제하셈. 
+
 ## <a id="2">JPA와 하이버네이트의 차이점?</a>
 - **JPA** : ORM에 대한 기본적인 기능, API를 정의한 표준 스펙
 - **Hibernate** : JPA의 표준 구현체 중 하나. 
@@ -108,4 +114,35 @@
 > 부모, 자식을 각각 개별 테이블에 매핑하는데 부모 필드는 부모에, 자식 필드는 자식에. 자식은 부모의 기본키를 외래키로 가짐.
 - 테이블 정규화가 잘 되어 있음.
 - 조인 필요. 쿼리 복잡.
+
+## <a id="11">JPA Collection과 Set의 차이?</a>
+- Collection에는 값을 추가해도 지연로딩된 컬렉션을 초기화하지 않음. 메모리상에서만 동작. 근데 크기 확인하거나 반복하는 등 하면 초기화되긴 함.
+- Set은 중복 체크 때문에 지연로딩된 컬렉션 초기화해야됨. SELECT 쿼리 1회 더 나감.
+
+## <a id="12">JPA List 순서</a>
+**List + `@OrderColumn`**
+실무에서 안 씀. 시간복잡도가 넘 안 좋음.  
+1개 포지션 고치면 나머지 로우 다 갱신함.  
+
+**List + `@OrderBy`**
+이거 붙이면 쿼리에 자동으로 order by 붙어서 나감. 이게 더 낫다는 것 같은데 잘 모름.  
+
+## <a id="13">Persistence Context를 Flush하는 방법은?</a>
+1. `em.flush()` 호출
+2. 트랜잭션 커밋 시 자동 호출
+3. JPQL 실행 시 자동 호출?
+
+**정확히는 대기 중인 엔티티의 작업과 겹치는 JPQL 쿼리 실행 전에 플러시가 발생함**
+```java
+@Transactional
+public void addMember(String username) {
+	Member member = new Member(username);
+	em.persist(member);
+	em.createQuery("select a from Article a").getResultList();
+	em.createQuery("select m from Member m ").getResultList();
+}
+```
+1. `em.persist(member)` 이 시점에 DB에 실제로 INSERT 쿼리 실행하진 않고 내부 쿼리 캐시에 엔티티 저장만 함
+2. `em.createQuery(Article)` 이 시점에 대기중 엔티티(Member)와 안 겹치는 엔티티(Article)의 JPQL 쿼리 실행하려고 함. Member flush 생략하고 Article SELECT 쿼리 실행함.
+3. `em.createQuery(Member)` 이 시점에 대기중 엔티티(Member)와 겹치는 엔티티에 대한 JPQL 쿼리 실행하려고 하기 때문에 이 때 flush함. 그 다음에 Member INSERT하고 Member SELECT함.
 
